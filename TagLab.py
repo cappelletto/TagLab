@@ -2888,6 +2888,8 @@ class TagLab(QMainWindow):
         # this should only operate on the active image
         self.activeviewer.image.map_px_to_mm_factor = round(value, 3)
         self.activeviewer.px_to_mm = round(value, 3)
+
+
     @pyqtSlot()
     def updateMapProperties(self):
 
@@ -3187,29 +3189,42 @@ class TagLab(QMainWindow):
             return
 
         filters = "Shapefile (*.shp)"
-        filename, _ = QFileDialog.getOpenFileName(self, "Import Shapefile", "", filters)
-        if not filename:
-            return
-
+        self.shapefile_filename, _ = QFileDialog.getOpenFileName(self, "Import Shapefile", "", filters)
         QApplication.setOverrideCursor(Qt.WaitCursor)
-
-        gf = self.activeviewer.image.georef_filename
-        blobList, data = rasterops.open_shapefile(filename, gf)
-
-        for blob in blobList:
-            self.activeviewer.addBlob(blob, selected=False)
-        self.activeviewer.saveUndo()
-
+        #read only attributes
+        data = rasterops.read_attributes(self.shapefile_filename)
         QApplication.restoreOverrideCursor()
 
-        if  data.empty:
-            msgBox = QMessageBox(self)
-            msgBox.setWindowTitle('TagLab')
-            msgBox.setText("This shapefile has no attributes")
-            msgBox.exec()
+        # # errore dovrebbe farti vedere tabella vuota ma lo stesso vedere la shape
+        # if  data.empty:
+        #     msgBox = QMessageBox(self)
+        #     msgBox.setWindowTitle('TagLab')
+        #     msgBox.setText("This shapefile has no attributes")
+        #     msgBox.exec()
+        # else:
+
+        self.attribute_widget = QtAttributeWidget(data)
+        self.attribute_widget.show()
+        self.attribute_widget.shapefilechoices[str, list].connect(self.readShapes)
+
+
+    @pyqtSlot(str,list)
+    def readShapes(self, shapetype, shapelist):
+
+        gf = self.activeviewer.image.georef_filename
+        if shapetype == 'Label':
+            blobList = rasterops.read_geometry(self.shapefile_filename, gf, shapetype)
+            for blob in blobList:
+                self.activeviewer.addBlob(blob, selected=False)
+                self.activeviewer.saveUndo()
+
+        elif shapetype == 'Sampling':
+             blobList = rasterops.read_geometry(self.shapefile_filename, gf, shapetype)
+
         else:
-            self.attribute_widget = QtAttributeWidget(data)
-            self.attribute_widget.show()
+            pass
+
+        self.shapefile_filename = ""
 
 
     @pyqtSlot()
